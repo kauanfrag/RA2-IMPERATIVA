@@ -1,0 +1,184 @@
+#include <stdio.h>
+#include <string.h>
+
+#define LIMITE_ALIMENTOS 100
+#define TAM_NOME 150
+
+enum Categoria {
+    CEREAIS = 0,
+    VERDURAS,
+    FRUTAS,
+    GORDURAS,
+    PESCADOS,
+    CARNES,
+    LEITE,
+    BEBIDAS,
+    OVOS,
+    ACUCARADOS,
+    MISCELANEAS
+};
+
+const char *categorias[] = {
+    "Cereais",
+    "Verduras",
+    "Frutas",
+    "Gorduras",
+    "Pescados",
+    "Carnes",
+    "Leite",
+    "Bebidas",
+    "Ovos",
+    "Produtos açucarados",
+    "Miscelâneas"
+};
+
+struct Alimento {
+    int codigo;
+    char nome[TAM_NOME];
+    float umidade;
+    float energia;
+    float proteina;
+    float carbo;
+    int categoria;
+};
+
+struct Alimento alimentos[LIMITE_ALIMENTOS];
+
+int lerCSV(struct Alimento vet[]) {
+    FILE *arq = fopen("alimentos.csv", "r");
+    char linha[300];  //buffer
+    int totalLidos = 0;
+    if (!fgets(linha, sizeof(linha), arq)) {
+        fclose(arq);
+        return 0;
+    }
+    while (fgets(linha, sizeof(linha), arq) && totalLidos < LIMITE_ALIMENTOS) {
+        sscanf(linha, "%d,%[^,],%f,%f,%f,%f,%d", //dados string formataçãao
+               &vet[totalLidos].codigo,
+               vet[totalLidos].nome,
+               &vet[totalLidos].umidade,
+               &vet[totalLidos].energia,
+               &vet[totalLidos].proteina,
+               &vet[totalLidos].carbo,
+               &vet[totalLidos].categoria);
+        totalLidos = totalLidos + 1;
+    }
+    fclose(arq);
+    return totalLidos;
+}
+
+void OrdemAlfabetica(struct Alimento *lista[], int n) {
+    int trocou = 1;
+    while (trocou) {
+        trocou = 0;
+        for (int j = 0; j < n - 1; j++) {
+            if (strcmp(lista[j]->nome, lista[j + 1]->nome) > 0) {
+                struct Alimento *T = lista[j];
+                lista[j] = lista[j + 1];
+                lista[j + 1] = T;
+                trocou = 1;
+            }
+        }
+    }
+}
+
+void OrdemQuantidade(struct Alimento *lista[], int n, int criterio) { //n quantos
+    int trocou = 1;
+    while (trocou) {
+        trocou = 0;
+        for (int j = 0; j < n - 1; j++) { //n - 1 limite
+            float a = 0, b = 0;
+
+            if (criterio == 1) { a = lista[j]->energia; b = lista[j+1]->energia; }
+            else if (criterio == 2) { a = lista[j]->umidade; b = lista[j+1]->umidade; }
+            else if (criterio == 3) { a = lista[j]->proteina; b = lista[j+1]->proteina; }
+            else if (criterio == 4) { a = lista[j]->carbo; b = lista[j+1]->carbo; }
+            else if (criterio == 5) {
+                a = (lista[j]->proteina > 0) ? lista[j]->energia / lista[j]->proteina : -1.0f;
+                b = (lista[j+1]->proteina > 0) ? lista[j+1]->energia / lista[j+1]->proteina : -1.0f;
+            }
+            else if (criterio == 6) {
+                a = (lista[j]->carbo > 0) ? lista[j]->energia / lista[j]->carbo : -1.0f;
+                b = (lista[j+1]->carbo > 0) ? lista[j+1]->energia / lista[j+1]->carbo : -1.0f;
+            }
+
+            if (a < b) {
+                struct Alimento *T = lista[j];
+                lista[j] = lista[j+1];
+                lista[j+1] = T;
+                trocou = 1;
+            }
+        }
+    }
+}
+
+int main() {
+    int total = lerCSV(alimentos);
+    int opcao;
+
+    do {
+        printf("\n0 - Sair\n");
+        printf("1 - Categorias\n");
+        printf("2 - Lista por nome\n");
+        printf("3 - Lista por energia\n");
+        printf("4 - Rank N por umidade\n");
+        printf("5 - Rank N por energia\n");
+        printf("6 - Rank N por proteina\n");
+        printf("7 - Rank N por carbo\n");
+        printf("8 - Rank N por energia/prot\n");
+        printf("9 - Rank N por energia/carb\n");
+        printf("Escolha: ");
+        scanf("%d", &opcao);
+
+        if (opcao == 1) {
+            for (int i = 0; i <= MISCELANEAS; i++)
+                printf("%2d - %s\n", i, categorias[i]);
+            continue;
+        }
+
+        if (opcao >= 2 && opcao <= 9) {
+            int cat;
+            printf("Categoria (0-10): ");
+            scanf("%d", &cat);
+
+            struct Alimento *lista[LIMITE_ALIMENTOS];
+            int qtd = 0;
+
+            for (int i = 0; i < total; i++)
+                if (alimentos[i].categoria == cat)
+                    lista[qtd++] = &alimentos[i]; //qtd numero de items encontrados, lista vetor de pont, endereço do alimento [i]
+
+            int n = qtd;
+            if (opcao != 2 && opcao != 3) {
+                printf("Quantos? ");
+                scanf("%d", &n);
+                if (n > qtd) n = qtd; ///qtd tamanho efetivo da lista
+                if (n <= 0) n = qtd;
+            }
+
+            switch (opcao) {
+                case 2: OrdemAlfabetica(lista, qtd); break;
+                case 3: OrdemQuantidade(lista, qtd, 1); break;
+                case 4: OrdemQuantidade(lista, qtd, 2); break;
+                case 5: OrdemQuantidade(lista, qtd, 1); break;
+                case 6: OrdemQuantidade(lista, qtd, 3); break;
+                case 7: OrdemQuantidade(lista, qtd, 4); break;
+                case 8: OrdemQuantidade(lista, qtd, 5); break;
+                case 9: OrdemQuantidade(lista, qtd, 6); break;
+            }
+
+            printf("\nCategoria: %s\n\n", categorias[cat]); //lista[i] ponteiros
+            for (int i = 0; i < n; i++) {
+                struct Alimento *a = lista[i];
+                printf("%d - %s\n", a->codigo, a->nome);
+                printf("   Umidade: %.1f%%\n", a->umidade);
+                printf("   Energia: %.0f kcal\n", a->energia);
+                printf("   Proteina: %.1fg\n", a->proteina);
+                printf("   Carboidratos: %.1fg\n\n", a->carbo);
+            }
+        }
+
+    } while (opcao != 0); //sair
+
+    return 0;
+}
