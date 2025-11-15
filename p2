@@ -6,385 +6,296 @@
 #define TAM_DESC 150
 
 enum Categoria {
- CEREAIS=0, VERDURAS, FRUTAS, GORDURAS, PESCADOS,
- CARNES, LEITE, BEBIDAS, OVOS, ACUCARADOS, MISCELANEAS,
- CATEGORIA_INVALID
+    CEREAIS=0, VERDURAS, FRUTAS, GORDURAS, PESCADOS,
+    CARNES, LEITE, BEBIDAS, OVOS, ACUCARADOS, MISCELANEAS,
+    CATEGORIA_INVALID
 };
 
 const char *categorias[] = {
- "Cereais","Verduras","Frutas","Gorduras","Pescados",
- "Carnes","Leite","Bebidas","Ovos","Produtos acucarados","Miscelaneas"
+    "Cereais","Verduras","Frutas","Gorduras","Pescados",
+    "Carnes","Leite","Bebidas","Ovos","Produtos acucarados","Miscelaneas"
 };
 
 struct Alimento {
- int codigo;
- char descricao[TAM_DESC];
- float energia;
- float proteina;
- int categoria;
+    int codigo;
+    char descricao[TAM_DESC];
+    float energia;
+    float proteina;
+    int categoria;
 };
 
 struct FoodNode {
- struct Alimento dato;
- struct FoodNode *prox;
+    struct Alimento dado;
+    struct FoodNode *prox;
 };
 
 struct CatNode {
- int cid;
- struct FoodNode *foods;
- struct CatNode *prox;
+    int cid;
+    struct FoodNode *foods;
+    struct CatNode *prox;
 };
 
 struct TreeNode {
- float key;
- struct FoodNode *foodptr;
- struct TreeNode *left;
- struct TreeNode *right;
+    float chave;
+    struct FoodNode *ref;
+    struct TreeNode *esq;
+    struct TreeNode *dir;
 };
 
 struct TreePair {
- struct TreeNode *ener;
- struct TreeNode *prot;
+    struct TreeNode *ener;
+    struct TreeNode *prot;
 };
 
-static int read_bin_all(const char *path, struct Alimento **out, int *cnt)
-{
- int ok = 0;
- FILE *f = fopen(path,"rb");
- if (f==NULL) return ok;
- int n = 0;
- if (fread(&n,sizeof(int),1,f) != 1) { fclose(f); return ok; }
- if (n <= 0) { *out = NULL; *cnt = 0; fclose(f); ok = 1; return ok; }
- struct Alimento *arr = (struct Alimento*) malloc((size_t)n * sizeof(struct Alimento));
- if (arr==NULL) { fclose(f); return ok; }
- size_t g = fread(arr,sizeof(struct Alimento),(size_t)n,f);
- if ((int)g != n) { free(arr); fclose(f); return ok; }
- fclose(f);
- *out = arr;
- *cnt = n;
- ok = 1;
- return ok;
-}
-
-static CatNode *create_catnode(int id)
-{
- CatNode *n = (CatNode*) calloc(1,sizeof(CatNode));
- if (n==NULL) return NULL;
- n->cid = id;
- n->foods = NULL;
- n->prox = NULL;
- return n;
-}
-
-static FoodNode *create_foodnode(const struct Alimento *a)
-{
- FoodNode *n = (FoodNode*) malloc(sizeof(FoodNode));
- if (n==NULL) return NULL;
- n->dato = *a;
- n->prox = NULL;
- return n;
-}
-
-static int ci_cmp(const char *a, const char *b)
-{
- size_t i = 0;
- int r = 0;
- while (r==0) {
-  unsigned char ca = (unsigned char) a[i];
-  unsigned char cb = (unsigned char) b[i];
-  if (ca == '\0' && cb == '\0') { r = 0; break; }
-  if (ca == '\0') { r = -1; break; }
-  if (cb == '\0') { r = 1; break; }
-  char la = (char) tolower(ca);
-  char lb = (char) tolower(cb);
-  if (la < lb) { r = -1; break; }
-  if (la > lb) { r = 1; break; }
-  i++;
- }
- return r;
-}
-
-static void insert_food_into_list_sorted(FoodNode **head, FoodNode *newf)
-{
- FoodNode *cur = *head;
- FoodNode *prev = NULL;
- int done = 0;
- while (done==0) {
-  if (cur == NULL) {
-   if (prev == NULL) { *head = newf; }
-   else { prev->prox = newf; }
-   done = 1;
-  } else {
-   int c = ci_cmp(newf->dato.descricao, cur->dato.descricao);
-   if (c <= 0) {
-    if (prev == NULL) { newf->prox = *head; *head = newf; }
-    else { newf->prox = prev->prox; prev->prox = newf; }
-    done = 1;
-   } else {
-    prev = cur;
-    cur = cur->prox;
-   }
-  }
- }
-}
-
-static void insert_cat_sorted(CatNode **head, CatNode *nc)
-{
- CatNode *cur = *head;
- CatNode *prev = NULL;
- int placed = 0;
- while (placed==0) {
-  if (cur == NULL) {
-   if (prev == NULL) { *head = nc; }
-   else { prev->prox = nc; }
-   placed = 1;
-  } else {
-   int c = strcmp(categorias[nc->cid], categorias[cur->cid]);
-   if (c <= 0) {
-    if (prev == NULL) { nc->prox = *head; *head = nc; }
-    else { nc->prox = prev->prox; prev->prox = nc; }
-    placed = 1;
-   } else {
-    prev = cur;
-    cur = cur->prox;
-   }
-  }
- }
-}
-
-static CatNode *find_cat(CatNode *head, int cid)
-{
- CatNode *cur = head;
- CatNode *res = NULL;
- while (cur != NULL && res == NULL) {
-  if (cur->cid == cid) res = cur;
-  else cur = cur->prox;
- }
- return res;
-}
-
-static void insert_food_sorted_by_cat(CatNode **head,const struct Alimento *a)
-{
- if (a==NULL) return;
- CatNode *cur = *head;
- CatNode *found = NULL;
- while (cur != NULL && found == NULL) {
-  if (cur->cid == a->categoria) found = cur;
-  else cur = cur->prox;
- }
- if (found == NULL) {
-  CatNode *nc = create_catnode(a->categoria);
-  if (nc == NULL) return;
-  insert_cat_sorted(head,nc);
-  cur = *head;
-  found = NULL;
-  while (cur != NULL && found == NULL) {
-   if (cur->cid == a->categoria) found = cur;
-   else cur = cur->prox;
-  }
-  if (found == NULL) return;
- }
- FoodNode *fn = create_foodnode(a);
- if (fn == NULL) return;
- insert_food_into_list_sorted(&found->foods, fn);
-}
-
-static TreeNode *tn_create(float key, FoodNode *fp)
-{
- TreeNode *n = (TreeNode*) malloc(sizeof(TreeNode));
- if (n==NULL) return NULL;
- n->key = key;
- n->foodptr = fp;
- n->left = NULL;
- n->right = NULL;
- return n;
-}
-
-static TreeNode *tree_insert_iter(TreeNode *root, float key, FoodNode *fp)
-{
- if (root == NULL) {
-  return tn_create(key,fp);
- }
- TreeNode *cur = root;
- int done = 0;
- while (done==0) {
-  if (key < cur->key) {
-   if (cur->left == NULL) { cur->left = tn_create(key,fp); done = 1; }
-   else cur = cur->left;
-  } else if (key > cur->key) {
-   if (cur->right == NULL) { cur->right = tn_create(key,fp); done = 1; }
-   else cur = cur->right;
-  } else {
-   int c = strcmp(fp->dato.descricao, cur->foodptr->dato.descricao);
-   if (c <= 0) {
-    if (cur->left == NULL) { cur->left = tn_create(key,fp); done = 1; }
-    else cur = cur->left;
-   } else {
-    if (cur->right == NULL) { cur->right = tn_create(key,fp); done = 1; }
-    else cur = cur->right;
-   }
-  }
- }
- return root;
-}
-
-static struct TreePair *build_trees_for_category(CatNode *cat)
-{
- struct TreePair *p = (struct TreePair*) calloc(1,sizeof(struct TreePair));
- if (p==NULL) return NULL;
- FoodNode *f = cat->foods;
- while (f != NULL) {
-  p->ener = tree_insert_iter(p->ener, f->dato.energia, f);
-  p->prot = tree_insert_iter(p->prot, f->dato.proteina, f);
-  f = f->prox;
- }
- return p;
-}
-
-static void print_tree_desc(TreeNode *root)
-{
- TreeNode **stack = NULL;
- size_t top = 0;
- TreeNode *cur = root;
- while (cur != NULL || top > 0) {
-  while (cur != NULL) {
-   stack = (TreeNode**) realloc(stack,(top+1)*sizeof(TreeNode*));
-   stack[top++] = cur;
-   cur = cur->right;
-  }
-  if (top == 0) break;
-  cur = stack[--top];
-  printf("%d %s %.0f %.1f\n", cur->foodptr->dato.codigo, cur->foodptr->dato.descricao, cur->foodptr->dato.energia, cur->foodptr->dato.proteina);
-  cur = cur->left;
- }
- free(stack);
-}
-
-static void free_tree_rec(TreeNode *r)
-{
- if (r==NULL) return;
- free_tree_rec(r->left);
- free_tree_rec(r->right);
- free(r);
-}
-
-static void free_all(CatNode *head, struct TreePair **pairs, int npairs)
-{
- if (pairs != NULL) {
-  int i = 0;
-  while (i < npairs) {
-   if (pairs[i] != NULL) {
-    if (pairs[i]->ener != NULL) free_tree_rec(pairs[i]->ener);
-    if (pairs[i]->prot != NULL) free_tree_rec(pairs[i]->prot);
-    free(pairs[i]);
-   }
-   i++;
-  }
-  free(pairs);
- }
- CatNode *c = head;
- while (c != NULL) {
-  FoodNode *f = c->foods;
-  while (f != NULL) {
-   FoodNode *nx = f->prox;
-   free(f);
-   f = nx;
-  }
-  CatNode *nx = c->prox;
-  free(c);
-  c = nx;
- }
-}
-
-static void print_cats(CatNode *head)
-{
- CatNode *c = head;
- while (c != NULL) {
-  printf("%d %s\n", c->cid, categorias[c->cid]);
-  c = c->prox;
- }
-}
-
-static void print_foods_of_cat(CatNode *cat)
-{
- if (cat==NULL) return;
- FoodNode *f = cat->foods;
- while (f != NULL) {
-  printf("%d %s %.0f %.1f\n", f->dato.codigo, f->dato.descricao, f->dato.energia, f->dato.proteina);
-  f = f->prox;
- }
-}
-
-int main(void)
-{
- struct Alimento *arr = NULL;
- int count = 0;
- int ok = read_bin_all("dados.bin",&arr,&count);
- if (ok != 1) { printf("ERRO\n"); return 0; }
- CatNode *cats = NULL;
- int i = 0;
- while (i < count) {
-  if (arr[i].categoria >= CEREAIS && arr[i].categoria <= MISCELANEAS) {
-   insert_food_sorted_by_cat(&cats,&arr[i]);
-  }
-  i++;
- }
- free(arr);
- int catcount = 0;
- CatNode *t = cats;
- while (t != NULL) { catcount++; t = t->prox; }
- struct TreePair **pairs = NULL;
- if (catcount > 0) pairs = (struct TreePair**) malloc((size_t)catcount * sizeof(struct TreePair*));
- int idx = 0;
- t = cats;
- while (t != NULL) {
-  pairs[idx] = build_trees_for_category(t);
-  idx++;
-  t = t->prox;
- }
- int opc = -1;
- int running = 1;
- while (running==1) {
-  printf("\n0\n1\n2\n3\n4\n");
-  if (scanf("%d",&opc) != 1) { running = 0; }
-  else {
-   if (opc == 0) { running = 0; }
-   else if (opc == 1) { print_cats(cats); }
-   else if (opc == 2) {
-    int cid = -1;
-    if (scanf("%d",&cid) == 1) {
-     CatNode *cc = find_cat(cats,cid);
-     print_foods_of_cat(cc);
+static int ci_cmp(const char *a, const char *b) {
+    size_t i = 0;
+    int r = 0;
+    while (r==0) {
+        unsigned char ca = (unsigned char)a[i], cb = (unsigned char)b[i];
+        if (ca=='\0' && cb=='\0') r = 0;
+        else if (ca=='\0') r = -1;
+        else if (cb=='\0') r = 1;
+        else {
+            char la = (char)tolower(ca), lb = (char)tolower(cb);
+            if (la<lb) r = -1; else if (la>lb) r = 1; else i++;
+        }
+        if (r!=0 || (ca=='\0' && cb=='\0')) break;
     }
-   } else if (opc == 3) {
-    int cid = -1;
-    if (scanf("%d",&cid) == 1) {
-     CatNode *cc = find_cat(cats,cid);
-     int pos = 0;
-     CatNode *it = cats;
-     int foundpos = -1;
-     while (it != NULL) {
-      if (it == cc) { foundpos = pos; break; }
-      pos++; it = it->prox;
-     }
-     if (foundpos >= 0 && foundpos < catcount) print_tree_desc(pairs[foundpos]->ener);
+    return r;
+}
+
+static int read_bin_all(const char *path, struct Alimento **out, int *cnt) {
+    int ok = 0, n = 0;
+    FILE *f = fopen(path,"rb");
+    if (f==NULL) return ok;
+    if (fread(&n,sizeof(int),1,f)!=1) { fclose(f); return ok; }
+    if (n<=0) { *out=NULL; *cnt=0; fclose(f); ok=1; return ok; }
+    struct Alimento *arr = (struct Alimento*)malloc((size_t)n*sizeof(struct Alimento));
+    if (arr==NULL) { fclose(f); return ok; }
+    size_t g = fread(arr,sizeof(struct Alimento),(size_t)n,f);
+    if ((int)g!=n) { free(arr); fclose(f); return ok; }
+    fclose(f);
+    *out=arr; *cnt=n; ok=1; return ok;
+}
+
+static struct CatNode* novo_cat(int id) {
+    struct CatNode *n = (struct CatNode*)calloc(1,sizeof(struct CatNode));
+    if (n!=NULL) { n->cid=id; n->foods=NULL; n->prox=NULL; }
+    return n;
+}
+
+static struct FoodNode* novo_food(const struct Alimento *a) {
+    struct FoodNode *n = (struct FoodNode*)malloc(sizeof(struct FoodNode));
+    if (n!=NULL) { n->dado=*a; n->prox=NULL; }
+    return n;
+}
+
+static void inserir_cat_ordenado(struct CatNode **cab, struct CatNode *novo) {
+    struct CatNode *cur=*cab, *ant=NULL; int feito=0;
+    while (feito==0) {
+        if (cur==NULL) {
+            if (ant==NULL) *cab=novo; else ant->prox=novo;
+            feito=1;
+        } else {
+            int c = strcmp(categorias[novo->cid], categorias[cur->cid]);
+            if (c<=0) {
+                if (ant==NULL) { novo->prox=*cab; *cab=novo; }
+                else { novo->prox=ant->prox; ant->prox=novo; }
+                feito=1;
+            } else { ant=cur; cur=cur->prox; }
+        }
     }
-   } else if (opc == 4) {
-    int cid = -1;
-    if (scanf("%d",&cid) == 1) {
-     CatNode *cc = find_cat(cats,cid);
-     int pos = 0;
-     CatNode *it = cats;
-     int foundpos = -1;
-     while (it != NULL) {
-      if (it == cc) { foundpos = pos; break; }
-      pos++; it = it->prox;
-     }
-     if (foundpos >= 0 && foundpos < catcount) print_tree_desc(pairs[foundpos]->prot);
+}
+
+static struct CatNode* achar_cat(struct CatNode *cab, int cid) {
+    struct CatNode *cur=cab, *res=NULL;
+    while (cur!=NULL && res==NULL) {
+        if (cur->cid==cid) res=cur; else cur=cur->prox;
     }
-   } else { }
-  }
- }
- free_all(cats,pairs,catcount);
- return 0;
+    return res;
+}
+
+static void inserir_food_ordenado(struct FoodNode **cab, struct FoodNode *novo) {
+    struct FoodNode *cur=*cab, *ant=NULL; int feito=0;
+    while (feito==0) {
+        if (cur==NULL) {
+            if (ant==NULL) *cab=novo; else ant->prox=novo;
+            feito=1;
+        } else {
+            int c = ci_cmp(novo->dado.descricao, cur->dado.descricao);
+            if (c<=0) {
+                if (ant==NULL) { novo->prox=*cab; *cab=novo; }
+                else { novo->prox=ant->prox; ant->prox=novo; }
+                feito=1;
+            } else { ant=cur; cur=cur->prox; }
+        }
+    }
+}
+
+static void inserir_por_cat(struct CatNode **cab, const struct Alimento *a) {
+    if (a==NULL) return;
+    struct CatNode *c = achar_cat(*cab, a->categoria);
+    if (c==NULL) {
+        struct CatNode *nc = novo_cat(a->categoria);
+        if (nc==NULL) return;
+        inserir_cat_ordenado(cab, nc);
+        c = achar_cat(*cab, a->categoria);
+        if (c==NULL) return;
+    }
+    struct FoodNode *f = novo_food(a);
+    if (f==NULL) return;
+    inserir_food_ordenado(&c->foods, f);
+}
+
+static struct TreeNode* novo_no(float chave, struct FoodNode *ref) {
+    struct TreeNode *n = (struct TreeNode*)malloc(sizeof(struct TreeNode));
+    if (n!=NULL) { n->chave=chave; n->ref=ref; n->esq=NULL; n->dir=NULL; }
+    return n;
+}
+
+static struct TreeNode* inserir_arv(struct TreeNode *raiz, float chave, struct FoodNode *ref) {
+    if (raiz==NULL) return novo_no(chave,ref);
+    struct TreeNode *cur=raiz; int ok=0;
+    while (ok==0) {
+        if (chave<cur->chave) {
+            if (cur->esq==NULL) { cur->esq=novo_no(chave,ref); ok=1; } else cur=cur->esq;
+        } else if (chave>cur->chave) {
+            if (cur->dir==NULL) { cur->dir=novo_no(chave,ref); ok=1; } else cur=cur->dir;
+        } else {
+            int c = strcmp(ref->dado.descricao, cur->ref->dado.descricao);
+            if (c<=0) {
+                if (cur->esq==NULL) { cur->esq=novo_no(chave,ref); ok=1; } else cur=cur->esq;
+            } else {
+                if (cur->dir==NULL) { cur->dir=novo_no(chave,ref); ok=1; } else cur=cur->dir;
+            }
+        }
+    }
+    return raiz;
+}
+
+static struct TreePair* montar_arvores(struct CatNode *c) {
+    struct TreePair *p = (struct TreePair*)calloc(1,sizeof(struct TreePair));
+    if (p==NULL) return NULL;
+    struct FoodNode *f=c->foods;
+    while (f!=NULL) {
+        p->ener = inserir_arv(p->ener, f->dado.energia, f);
+        p->prot = inserir_arv(p->prot, f->dado.proteina, f);
+        f=f->prox;
+    }
+    return p;
+}
+
+static void imprimir_desc(struct TreeNode *r) {
+    if (r==NULL) return;
+    imprimir_desc(r->dir);
+    printf("%d %s %.0f %.1f\n", r->ref->dado.codigo, r->ref->dado.descricao, r->ref->dado.energia, r->ref->dado.proteina);
+    imprimir_desc(r->esq);
+}
+
+static void liberar_arv(struct TreeNode *r) {
+    if (r==NULL) return;
+    liberar_arv(r->esq);
+    liberar_arv(r->dir);
+    free(r);
+}
+
+static void listar_cats(struct CatNode *cab) {
+    struct CatNode *c=cab;
+    while (c!=NULL) { printf("%d %s\n", c->cid, categorias[c->cid]); c=c->prox; }
+}
+
+static void listar_itens(struct CatNode *c) {
+    if (c==NULL) return;
+    struct FoodNode *f=c->foods;
+    while (f!=NULL) {
+        printf("%d %s %.0f %.1f\n", f->dado.codigo, f->dado.descricao, f->dado.energia, f->dado.proteina);
+        f=f->prox;
+    }
+}
+
+static int contar_cats(struct CatNode *cab) {
+    int n=0; struct CatNode *t=cab;
+    while (t!=NULL) { n++; t=t->prox; }
+    return n;
+}
+
+static int pos_cat(struct CatNode *cab, struct CatNode *alvo) {
+    int p=0, ach=-1; struct CatNode *it=cab;
+    while (it!=NULL && ach==-1) { if (it==alvo) ach=p; else { p++; it=it->prox; } }
+    return ach;
+}
+
+static void liberar_tudo(struct CatNode *cab, struct TreePair **pares, int q) {
+    if (pares!=NULL) {
+        int i=0;
+        while (i<q) {
+            if (pares[i]!=NULL) {
+                if (pares[i]->ener!=NULL) liberar_arv(pares[i]->ener);
+                if (pares[i]->prot!=NULL) liberar_arv(pares[i]->prot);
+                free(pares[i]);
+            }
+            i++;
+        }
+        free(pares);
+    }
+    struct CatNode *c=cab;
+    while (c!=NULL) {
+        struct FoodNode *f=c->foods;
+        while (f!=NULL) { struct FoodNode *nx=f->prox; free(f); f=nx; }
+        struct CatNode *nx=c->prox; free(c); c=nx;
+    }
+}
+
+int main(void) {
+    struct Alimento *arr=NULL; int count=0;
+    int ok = read_bin_all("dados.bin",&arr,&count);
+    if (ok!=1) { printf("ERRO\n"); return 0; }
+
+    struct CatNode *cats=NULL; int i=0;
+    while (i<count) {
+        if (arr[i].categoria>=CEREAIS && arr[i].categoria<=MISCELANEAS) inserir_por_cat(&cats,&arr[i]);
+        i++;
+    }
+    free(arr);
+
+    int qcats = contar_cats(cats);
+    struct TreePair **pares=NULL;
+    if (qcats>0) {
+        pares = (struct TreePair**)malloc((size_t)qcats*sizeof(struct TreePair*));
+        if (pares==NULL) { printf("Memória insuficiente\n"); liberar_tudo(cats,NULL,0); return 0; }
+    }
+
+    int k=0; struct CatNode *g=cats;
+    while (g!=NULL) { pares[k]=montar_arvores(g); k++; g=g->prox; }
+
+    int op=-1; int roda=1;
+    while (roda==1) {
+        printf("\n0\n1\n2\n3\n4\n");
+        if (scanf("%d",&op)!=1) roda=0;
+        else {
+            if (op==0) roda=0;
+            else if (op==1) listar_cats(cats);
+            else if (op==2) {
+                int cid=-1;
+                if (scanf("%d",&cid)==1) { struct CatNode *cc=achar_cat(cats,cid); listar_itens(cc); }
+            } else if (op==3) {
+                int cid=-1;
+                if (scanf("%d",&cid)==1) {
+                    struct CatNode *cc=achar_cat(cats,cid);
+                    int p=pos_cat(cats,cc);
+                    if (p>=0 && p<qcats) imprimir_desc(pares[p]->ener);
+                }
+            } else if (op==4) {
+                int cid=-1;
+                if (scanf("%d",&cid)==1) {
+                    struct CatNode *cc=achar_cat(cats,cid);
+                    int p=pos_cat(cats,cc);
+                    if (p>=0 && p<qcats) imprimir_desc(pares[p]->prot);
+                }
+            }
+        }
+    }
+
+    liberar_tudo(cats,pares,qcats);
+    return 0;
 }
