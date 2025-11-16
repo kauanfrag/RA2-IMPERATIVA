@@ -193,6 +193,35 @@ static void print_dec(NoArv *r) {
     printf("%d %s %.0f %.1f\n", r->ref->info.codigo, r->ref->info.descricao, r->ref->info.energia, r->ref->info.proteina);
     print_dec(r->esq);
 }
+static void gravar_bin(const char *path, NoCat *cab) {
+    int total = 0;
+    NoCat *c = cab;
+    while (c != NULL) {
+        NoItem *it = c->itens;
+        while (it != NULL) {
+            total++;
+            it = it->prox;
+        }
+        c = c->prox;
+    }
+
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+
+    fwrite(&total, sizeof(int), 1, f);
+
+    c = cab;
+    while (c != NULL) {
+        NoItem *it = c->itens;
+        while (it != NULL) {
+            fwrite(&it->info, sizeof(Alimento), 1, f);
+            it = it->prox;
+        }
+        c = c->prox;
+    }
+
+    fclose(f);
+}
 
 static void soltar_arv(NoArv *r) {
     if (r == NULL) return;
@@ -279,6 +308,8 @@ int main(void) {
         printf("2 - Itens por categoria (alfabético)\n");
         printf("3 - Itens por energia (decrescente)\n");
         printf("4 - Itens por proteína (decrescente)\n");
+        printf("5 - Itens por energia dentro de um intervalo\n");
+        printf("6 - Itens por proteína dentro de um intervalo\n");
         printf("0 - Sair\n");
         if (scanf("%d", &escolha) != 1) loop = 0;
         else {
@@ -305,12 +336,33 @@ int main(void) {
                     int p = pos_cat(listaCats, cat);
                     if (p >= 0 && p < nCats && duos[p] != NULL) print_dec(duos[p]->porProteina);
                 }
-            } else {
+            }else if (escolha == 5) {
+                int cid; float min, max;
+                printf("Categoria id: ");
+                if (scanf("%d", &cid) == 1) {
+                    printf("Energia mínima: "); scanf("%f", &min);
+                    printf("Energia máxima: "); scanf("%f", &max);
+                    NoCat *cat = achar_cat(listaCats, cid);
+                    int p = pos_cat(listaCats, cat);
+                    if (p >= 0 && duos[p] != NULL)
+                        print_range_energia(duos[p]->porEnergia, min, max);
+                }
+            }else if (escolha == 6) {
+                int cid; float min, max;
+                printf("Categoria id: ");
+                if (scanf("%d", &cid) == 1) {
+                    printf("Proteína mínima: "); scanf("%f", &min);
+                    printf("Proteína máxima: "); scanf("%f", &max);
+                    NoCat *cat = achar_cat(listaCats, cid);
+                    int p = pos_cat(listaCats, cat);
+                    if (p >= 0 && duos[p] != NULL)
+                        print_range_proteina(duos[p]->porProteina, min, max);
+                }
             }
+
         }
     }
 
     soltar_geral(listaCats, duos, nCats);
     return 0;
 }
-
