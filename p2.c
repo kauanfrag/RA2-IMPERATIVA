@@ -277,6 +277,76 @@ static void soltar_geral(NoCat *cab, DuoArv **pairs, int q) {
     }
 }
 
+static int remover_categoria(NoCat **listaCats_ptr, DuoArv ***duos_ptr, int *nCats_ptr, int catId) {
+    int removed = 0;
+    if (listaCats_ptr == NULL || *listaCats_ptr == NULL) return removed;
+
+    NoCat *cur = *listaCats_ptr;
+    NoCat *ant = NULL;
+    while (cur != NULL && removed == 0) {
+        if (cur->id == catId) {
+            if (ant == NULL) *listaCats_ptr = cur->prox;
+            else ant->prox = cur->prox;
+
+            NoItem *it = cur->itens;
+            while (it != NULL) {
+                NoItem *nx = it->prox;
+                free(it);
+                it = nx;
+            }
+            free(cur);
+
+            rebuild_duos(*listaCats_ptr, duos_ptr, nCats_ptr);
+
+            removed = 1;
+        } else {
+            ant = cur;
+            cur = cur->prox;
+        }
+    }
+    return removed;
+}
+
+static int remover_alimento_por_codigo(NoCat *listaCats, DuoArv **duos, int *nCats_ptr, int codigo) {
+    int removed = 0;
+    if (listaCats == NULL) return removed;
+
+    NoCat *c = listaCats;
+    int idx = 0;
+    while (c != NULL && removed == 0) {
+        NoItem *it = c->itens;
+        NoItem *ant = NULL;
+        while (it != NULL && removed == 0) {
+            if (it->info.codigo == codigo) {
+                if (ant == NULL) {
+                    c->itens = it->prox;
+                } else {
+                    ant->prox = it->prox;
+                }
+                free(it);
+
+                int pos = pos_cat(listaCats, c);
+                if (pos >= 0 && pos < *nCats_ptr && duos != NULL) {
+                    if (duos[pos] != NULL) {
+                        if (duos[pos]->porEnergia != NULL) soltar_arv(duos[pos]->porEnergia);
+                        if (duos[pos]->porProteina != NULL) soltar_arv(duos[pos]->porProteina);
+                        free(duos[pos]);
+                    }
+
+                    duos[pos] = montar_duo(c);
+                }
+                removed = 1;
+            } else {
+                ant = it;
+                it = it->prox;
+            }
+        }
+        c = c->prox;
+        idx++;
+    }
+    return removed;
+}
+
 int main(void) {
     Alimento *arr = NULL; int total = 0;
     int ok = ler_bin("dados.bin", &arr, &total);
@@ -310,6 +380,8 @@ int main(void) {
         printf("4 - Itens por proteína (decrescente)\n");
         printf("5 - Itens por energia dentro de um intervalo\n");
         printf("6 - Itens por proteína dentro de um intervalo\n");
+        printf("7 - remover uma categoria\n");
+        printf("8 - remover um alimento\n");
         printf("0 - Sair\n");
         if (scanf("%d", &escolha) != 1) loop = 0;
         else {
@@ -357,6 +429,20 @@ int main(void) {
                     int p = pos_cat(listaCats, cat);
                     if (p >= 0 && duos[p] != NULL)
                         print_range_proteina(duos[p]->porProteina, min, max);
+                }
+            } else if (escolha == 7) {
+                int cid = -1; printf("Categoria id para remover: ");
+                if (scanf("%d", &cid) == 1) {
+                    int okrem = remover_categoria(&listaCats, &duos, &nCats, cid);
+                    if (okrem) { printf("Categoria %d removida.\n", cid); modified = 1; }
+                    else printf("Categoria %d não encontrada.\n", cid);
+                }
+            } else if (escolha == 8) {
+                int codigo = -1; printf("Codigo do alimento para remover: ");
+                if (scanf("%d", &codigo) == 1) {
+                    int okrem = remover_alimento_por_codigo(listaCats, duos, &nCats, codigo);
+                    if (okrem) { printf("Alimento %d removido.\n", codigo); modified = 1; }
+                    else printf("Alimento %d não encontrado.\n", codigo);
                 }
             }
 
