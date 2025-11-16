@@ -6,449 +6,474 @@
 #define TAM_DESC 150
 
 enum Categoria {
-    CEREAIS=0, VERDURAS, FRUTAS, GORDURAS, PESCADOS,
-    CARNES, LEITE, BEBIDAS, OVOS, ACUCARADOS, MISCELANEAS,
+    CEREAIS = 0,
+    VERDURAS,
+    FRUTAS,
+    GORDURAS,
+    PESCADOS,
+    CARNES,
+    LEITE,
+    BEBIDAS,
+    OVOS,
+    ACUCARADOS,
+    MISCELANEAS,
+    INDUSTRIALIZADOS,
+    PREPARADOS,
+    LEGUMINOSAS,
+    NOZES_SEMENTES,
     CATEGORIA_INVALID
 };
 
-typedef struct Alimento {
+typedef struct Comidinha {
     int codigo;
     char descricao[TAM_DESC];
     float energia;
     float proteina;
     int categoria;
-} Alimento;
+} Comidinha;
 
-typedef struct NoItem {
-    Alimento info;
-    struct NoItem *prox;
-} NoItem;
+typedef struct NodoCom {
+    Comidinha dado;
+    struct NodoCom *prox;
+} NodoCom;
 
-typedef struct NoCat {
+typedef struct NodoCat {
     int id;
-    NoItem *itens;
-    struct NoCat *prox;
-} NoCat;
+    NodoCom *itens;
+    struct NodoCat *prox;
+} NodoCat;
 
-typedef struct NoArv {
+typedef struct NodoArv {
     float chave;
-    NoItem *ref;
-    struct NoArv *esq;
-    struct NoArv *dir;
-} NoArv;
+    NodoCom *ref;
+    struct NodoArv *esq;
+    struct NodoArv *dir;
+} NodoArv;
 
-typedef struct DuoArv {
-    NoArv *porEnergia;
-    NoArv *porProteina;
-} DuoArv;
+typedef struct ParArv {
+    NodoArv *porEnergia;
+    NodoArv *porProteina;
+} ParArv;
 
 static const char *NOMES_CAT[] = {
-    "Cereais","Verduras","Frutas","Gorduras","Pescados",
-    "Carnes","Leite","Bebidas","Ovos","Produtos acucarados","Miscelaneas"
+    "Cereais e derivados",
+    "Verduras, hortaliças e derivados",
+    "Frutas e derivados",
+    "Gorduras e óleos",
+    "Pescados e frutos do mar",
+    "Carnes e derivados",
+    "Leite e derivados",
+    "Bebidas",
+    "Ovos e derivados",
+    "Produtos açucarados",
+    "Miscelaneas",
+    "Outros alimentos industrializados",
+    "Alimentos preparados",
+    "Leguminosas e derivados",
+    "Nozes e sementes"
 };
 
-static int cmp_ci(const char *a, const char *b) {
+static int ci_cmp(const char *a, const char *b)
+{
     size_t i = 0;
-    int r = 0;
-    while (r == 0) {
-        unsigned char ca = (unsigned char)a[i], cb = (unsigned char)b[i];
-        if (ca == '\0' && cb == '\0') r = 0;
-        else if (ca == '\0') r = -1;
-        else if (cb == '\0') r = 1;
-        else {
-            char la = (char)tolower(ca), lb = (char)tolower(cb);
-            if (la < lb) r = -1;
-            else if (la > lb) r = 1;
-            else i++;
-        }
-        if (r != 0 || (ca == '\0' && cb == '\0')) break;
+    while (1) {
+        unsigned char ca = (unsigned char)a[i];
+        unsigned char cb = (unsigned char)b[i];
+        if (ca == '\0' && cb == '\0') return 0;
+        if (ca == '\0') return -1;
+        if (cb == '\0') return 1;
+        char la = (char)tolower(ca), lb = (char)tolower(cb);
+        if (la < lb) return -1;
+        if (la > lb) return 1;
+        i++;
     }
-    return r;
 }
 
-static int ler_bin(const char *path, Alimento **out, int *qt) {
+static int ler_bin(const char *path, Comidinha **out, int *qt)
+{
     int ok = 0, n = 0;
     FILE *f = fopen(path, "rb");
-    if (f == NULL) return ok;
+    if (!f) return ok;
     if (fread(&n, sizeof(int), 1, f) != 1) { fclose(f); return ok; }
     if (n <= 0) { *out = NULL; *qt = 0; fclose(f); ok = 1; return ok; }
-    Alimento *arr = (Alimento*)malloc((size_t)n * sizeof(Alimento));
-    if (arr == NULL) { fclose(f); return ok; }
-    size_t g = fread(arr, sizeof(Alimento), (size_t)n, f);
+    Comidinha *arr = (Comidinha*)malloc((size_t)n * sizeof(Comidinha));
+    if (!arr) { fclose(f); return ok; }
+    size_t g = fread(arr, sizeof(Comidinha), (size_t)n, f);
     if ((int)g != n) { free(arr); fclose(f); return ok; }
     fclose(f);
     *out = arr; *qt = n; ok = 1; return ok;
 }
 
-static NoCat* novo_cat(int id) {
-    NoCat *n = (NoCat*)calloc(1, sizeof(NoCat));
-    if (n != NULL) { n->id = id; n->itens = NULL; n->prox = NULL; }
+static NodoCat* novo_cat(int id)
+{
+    NodoCat *n = (NodoCat*)calloc(1, sizeof(NodoCat));
+    if (n) { n->id = id; n->itens = NULL; n->prox = NULL; }
     return n;
 }
 
-static NoItem* novo_item(const Alimento *a) {
-    NoItem *n = (NoItem*)malloc(sizeof(NoItem));
-    if (n != NULL) { n->info = *a; n->prox = NULL; }
+static NodoCom* novo_com(const Comidinha *c)
+{
+    NodoCom *n = (NodoCom*)malloc(sizeof(NodoCom));
+    if (n) { n->dado = *c; n->prox = NULL; }
     return n;
 }
 
-static void inserir_item_alf(NoItem **cab, NoItem *novo) {
-    NoItem *cur = *cab, *ant = NULL; int feito = 0;
-    while (feito == 0) {
+static void coloca_alf(NodoCom **cab, NodoCom *nv)
+{
+    NodoCom *cur = *cab, *ant = NULL; int feito = 0;
+    while (!feito) {
         if (cur == NULL) {
-            if (ant == NULL) *cab = novo; else ant->prox = novo;
+            if (ant == NULL) *cab = nv; else ant->prox = nv;
             feito = 1;
         } else {
-            int c = cmp_ci(novo->info.descricao, cur->info.descricao);
-            if (c <= 0) {
-                if (ant == NULL) { novo->prox = *cab; *cab = novo; }
-                else { novo->prox = ant->prox; ant->prox = novo; }
+            int cmp = ci_cmp(nv->dado.descricao, cur->dado.descricao);
+            if (cmp <= 0) {
+                if (ant == NULL) { nv->prox = *cab; *cab = nv; }
+                else { nv->prox = ant->prox; ant->prox = nv; }
                 feito = 1;
             } else { ant = cur; cur = cur->prox; }
         }
     }
 }
 
-static void inserir_cat_alf(NoCat **cab, NoCat *novo) {
-    NoCat *cur = *cab, *ant = NULL; int feito = 0;
-    while (feito == 0) {
+static void coloca_cat_alf(NodoCat **cab, NodoCat *nv)
+{
+    NodoCat *cur = *cab, *ant = NULL; int feito = 0;
+    while (!feito) {
         if (cur == NULL) {
-            if (ant == NULL) *cab = novo; else ant->prox = novo;
+            if (ant == NULL) *cab = nv; else ant->prox = nv;
             feito = 1;
         } else {
-            int c = strcmp(NOMES_CAT[novo->id], NOMES_CAT[cur->id]);
-            if (c <= 0) {
-                if (ant == NULL) { novo->prox = *cab; *cab = novo; }
-                else { novo->prox = ant->prox; ant->prox = novo; }
+            int cmp = strcmp(NOMES_CAT[nv->id], NOMES_CAT[cur->id]);
+            if (cmp <= 0) {
+                if (ant == NULL) { nv->prox = *cab; *cab = nv; }
+                else { nv->prox = ant->prox; ant->prox = nv; }
                 feito = 1;
             } else { ant = cur; cur = cur->prox; }
         }
     }
 }
 
-static NoCat* achar_cat(NoCat *cab, int id) {
-    NoCat *cur = cab, *res = NULL;
-    while (cur != NULL && res == NULL) {
-        if (cur->id == id) res = cur; else cur = cur->prox;
+static NodoCat* acha_cat(NodoCat *cab, int id)
+{
+    NodoCat *cur = cab;
+    while (cur) {
+        if (cur->id == id) return cur;
+        cur = cur->prox;
     }
-    return res;
+    return NULL;
 }
 
-static void inserir_item_por_cat(NoCat **cab, const Alimento *a) {
-    if (a == NULL) return;
-    NoCat *c = achar_cat(*cab, a->categoria);
-    if (c == NULL) {
-        NoCat *nc = novo_cat(a->categoria);
-        if (nc == NULL) return;
-        inserir_cat_alf(cab, nc);
-        c = achar_cat(*cab, a->categoria);
-        if (c == NULL) return;
+static void joga_na_cat(NodoCat **cab, const Comidinha *c)
+{
+    if (!c) return;
+    NodoCat *ct = acha_cat(*cab, c->categoria);
+    if (!ct) {
+        NodoCat *nc = novo_cat(c->categoria);
+        if (!nc) return;
+        coloca_cat_alf(cab, nc);
+        ct = acha_cat(*cab, c->categoria);
+        if (!ct) return;
     }
-    NoItem *ni = novo_item(a);
-    if (ni == NULL) return;
-    inserir_item_alf(&c->itens, ni);
+    NodoCom *nc = novo_com(c);
+    if (!nc) return;
+    coloca_alf(&ct->itens, nc);
 }
 
-static NoArv* novo_no(float chave, NoItem *ref) {
-    NoArv *n = (NoArv*)malloc(sizeof(NoArv));
-    if (n != NULL) { n->chave = chave; n->ref = ref; n->esq = NULL; n->dir = NULL; }
+static NodoArv* novo_no(float chave, NodoCom *ref)
+{
+    NodoArv *n = (NodoArv*)malloc(sizeof(NodoArv));
+    if (n) { n->chave = chave; n->ref = ref; n->esq = NULL; n->dir = NULL; }
     return n;
 }
 
-static NoArv* inserir_bst(NoArv *raiz, float chave, NoItem *ref) {
-    if (raiz == NULL) return novo_no(chave, ref);
-    NoArv *cur = raiz; int ok = 0;
-    while (ok == 0) {
+static NodoArv* arv_insere(NodoArv *raiz, float chave, NodoCom *ref)
+{
+    if (!raiz) return novo_no(chave, ref);
+    NodoArv *cur = raiz; int ok = 0;
+    while (!ok) {
         if (chave < cur->chave) {
-            if (cur->esq == NULL) { cur->esq = novo_no(chave, ref); ok = 1; } else cur = cur->esq;
+            if (!cur->esq) { cur->esq = novo_no(chave, ref); ok = 1; } else cur = cur->esq;
         } else if (chave > cur->chave) {
-            if (cur->dir == NULL) { cur->dir = novo_no(chave, ref); ok = 1; } else cur = cur->dir;
+            if (!cur->dir) { cur->dir = novo_no(chave, ref); ok = 1; } else cur = cur->dir;
         } else {
-            int c = strcmp(ref->info.descricao, cur->ref->info.descricao);
-            if (c <= 0) {
-                if (cur->esq == NULL) { cur->esq = novo_no(chave, ref); ok = 1; } else cur = cur->esq;
+            int cmp = strcmp(ref->dado.descricao, cur->ref->dado.descricao);
+            if (cmp <= 0) {
+                if (!cur->esq) { cur->esq = novo_no(chave, ref); ok = 1; } else cur = cur->esq;
             } else {
-                if (cur->dir == NULL) { cur->dir = novo_no(chave, ref); ok = 1; } else cur = cur->dir;
+                if (!cur->dir) { cur->dir = novo_no(chave, ref); ok = 1; } else cur = cur->dir;
             }
         }
     }
     return raiz;
 }
 
-static DuoArv* montar_duo(NoCat *cat) {
-    DuoArv *p = (DuoArv*)calloc(1, sizeof(DuoArv));
-    if (p == NULL) return NULL;
-    NoItem *f = cat->itens;
-    while (f != NULL) {
-        p->porEnergia   = inserir_bst(p->porEnergia,   f->info.energia,  f);
-        p->porProteina  = inserir_bst(p->porProteina,  f->info.proteina, f);
-        f = f->prox;
+static ParArv* monta_par(NodoCat *cat)
+{
+    ParArv *p = (ParArv*)calloc(1, sizeof(ParArv));
+    if (!p) return NULL;
+    NodoCom *it = cat->itens;
+    while (it) {
+        p->porEnergia = arv_insere(p->porEnergia, it->dado.energia, it);
+        p->porProteina = arv_insere(p->porProteina, it->dado.proteina, it);
+        it = it->prox;
     }
     return p;
 }
 
-static void print_dec(NoArv *r) {
-    if (r == NULL) return;
+static void print_dec(NodoArv *r)
+{
+    if (!r) return;
     print_dec(r->dir);
-    printf("%d %s %.0f %.1f\n", r->ref->info.codigo, r->ref->info.descricao, r->ref->info.energia, r->ref->info.proteina);
+    printf("%d %s %.0f %.1f\n", r->ref->dado.codigo, r->ref->dado.descricao, r->ref->dado.energia, r->ref->dado.proteina);
     print_dec(r->esq);
 }
-static void gravar_bin(const char *path, NoCat *cab) {
-    int total = 0;
-    NoCat *c = cab;
-    while (c != NULL) {
-        NoItem *it = c->itens;
-        while (it != NULL) {
-            total++;
-            it = it->prox;
-        }
-        c = c->prox;
-    }
 
-    FILE *f = fopen(path, "wb");
-    if (!f) return;
-
-    fwrite(&total, sizeof(int), 1, f);
-
-    c = cab;
-    while (c != NULL) {
-        NoItem *it = c->itens;
-        while (it != NULL) {
-            fwrite(&it->info, sizeof(Alimento), 1, f);
-            it = it->prox;
-        }
-        c = c->prox;
-    }
-
-    fclose(f);
+static void imprime_range_rec(NodoArv *r, float min, float max)
+{
+    if (!r) return;
+    imprime_range_rec(r->dir, min, max);
+    if (r->chave >= min && r->chave <= max) printf("%d %s %.0f %.1f\n", r->ref->dado.codigo, r->ref->dado.descricao, r->ref->dado.energia, r->ref->dado.proteina);
+    imprime_range_rec(r->esq, min, max);
 }
 
-static void soltar_arv(NoArv *r) {
-    if (r == NULL) return;
-    soltar_arv(r->esq);
-    soltar_arv(r->dir);
+static void solta_arv(NodoArv *r)
+{
+    if (!r) return;
+    solta_arv(r->esq);
+    solta_arv(r->dir);
     free(r);
 }
 
-static void ver_categorias(NoCat *cab) {
-    NoCat *c = cab;
-    while (c != NULL) { printf("%d %s\n", c->id, NOMES_CAT[c->id]); c = c->prox; }
+static int conta_cats(NodoCat *h)
+{
+    int c = 0; NodoCat *t = h;
+    while (t) { c++; t = t->prox; }
+    return c;
 }
 
-static void ver_itens(NoCat *c) {
-    if (c == NULL) return;
-    NoItem *f = c->itens;
-    while (f != NULL) {
-        printf("%d %s %.0f %.1f\n", f->info.codigo, f->info.descricao, f->info.energia, f->info.proteina);
-        f = f->prox;
-    }
-}
-
-static int contar_cats(NoCat *cab) {
-    int n = 0; NoCat *t = cab;
-    while (t != NULL) { n++; t = t->prox; }
-    return n;
-}
-
-static int pos_cat(NoCat *cab, NoCat *alvo) {
-    int p = 0, ach = -1; NoCat *it = cab;
-    while (it != NULL && ach == -1) { if (it == alvo) ach = p; else { p++; it = it->prox; } }
+static int pos_cat(NodoCat *cab, NodoCat *alvo)
+{
+    int p = 0, ach = -1; NodoCat *it = cab;
+    while (it && ach == -1) { if (it == alvo) ach = p; else { p++; it = it->prox; } }
     return ach;
 }
 
-static void soltar_geral(NoCat *cab, DuoArv **pairs, int q) {
-    if (pairs != NULL) {
-        int i = 0;
-        while (i < q) {
-            if (pairs[i] != NULL) {
-                if (pairs[i]->porEnergia != NULL)  soltar_arv(pairs[i]->porEnergia);
-                if (pairs[i]->porProteina != NULL) soltar_arv(pairs[i]->porProteina);
-                free(pairs[i]);
-            }
-            i++;
+static void solta_pares(ParArv **pairs, int q)
+{
+    if (!pairs) return;
+    int i = 0;
+    while (i < q) {
+        if (pairs[i]) {
+            if (pairs[i]->porEnergia) solta_arv(pairs[i]->porEnergia);
+            if (pairs[i]->porProteina) solta_arv(pairs[i]->porProteina);
+            free(pairs[i]);
         }
-        free(pairs);
+        i++;
     }
-    NoCat *c = cab;
-    while (c != NULL) {
-        NoItem *f = c->itens;
-        while (f != NULL) { NoItem *nx = f->prox; free(f); f = nx; }
-        NoCat *nxg = c->prox; free(c); c = nxg;
+    free(pairs);
+}
+
+static ParArv **constroi_pares(NodoCat *cab, int *outN)
+{
+    int n = conta_cats(cab);
+    *outN = n;
+    if (n == 0) return NULL;
+    ParArv **arr = (ParArv**)malloc((size_t)n * sizeof(ParArv*));
+    if (!arr) return NULL;
+    int k = 0;
+    NodoCat *g = cab;
+    while (g) { arr[k++] = monta_par(g); g = g->prox; }
+    return arr;
+}
+
+static void soltar_geral(NodoCat *cab, ParArv **pairs, int q)
+{
+    solta_pares(pairs, q);
+    NodoCat *c = cab;
+    while (c) {
+        NodoCom *f = c->itens;
+        while (f) { NodoCom *nx = f->prox; free(f); f = nx; }
+        NodoCat *nxg = c->prox; free(c); c = nxg;
     }
 }
 
-static int remover_categoria(NoCat **listaCats_ptr, DuoArv ***duos_ptr, int *nCats_ptr, int catId) {
+static int rebuild_pars(NodoCat *cab, ParArv ***ptr, int *nptr)
+{
+    if (*ptr != NULL) { solta_pares(*ptr, *nptr); *ptr = NULL; *nptr = 0; }
+    ParArv **novo = constroi_pares(cab, nptr);
+    *ptr = novo;
+    return 1;
+}
+
+static int remove_categoria(NodoCat **lista, ParArv ***pars_ptr, int *nCats_ptr, int catId)
+{
     int removed = 0;
-    if (listaCats_ptr == NULL || *listaCats_ptr == NULL) return removed;
-
-    NoCat *cur = *listaCats_ptr;
-    NoCat *ant = NULL;
-    while (cur != NULL && removed == 0) {
+    if (!lista || !*lista) return removed;
+    NodoCat *cur = *lista, *ant = NULL;
+    while (cur && !removed) {
         if (cur->id == catId) {
-            if (ant == NULL) *listaCats_ptr = cur->prox;
-            else ant->prox = cur->prox;
-
-            NoItem *it = cur->itens;
-            while (it != NULL) {
-                NoItem *nx = it->prox;
-                free(it);
-                it = nx;
-            }
+            if (!ant) *lista = cur->prox; else ant->prox = cur->prox;
+            NodoCom *it = cur->itens;
+            while (it) { NodoCom *nx = it->prox; free(it); it = nx; }
             free(cur);
-
-            rebuild_duos(*listaCats_ptr, duos_ptr, nCats_ptr);
-
             removed = 1;
-        } else {
-            ant = cur;
-            cur = cur->prox;
-        }
+        } else { ant = cur; cur = cur->prox; }
     }
+    if (removed) rebuild_pars(*lista, pars_ptr, nCats_ptr);
     return removed;
 }
 
-static int remover_alimento_por_codigo(NoCat *listaCats, DuoArv **duos, int *nCats_ptr, int codigo) {
+static int remove_alimento(NodoCat *lista, ParArv **pars, int *nCats_ptr, int codigo)
+{
     int removed = 0;
-    if (listaCats == NULL) return removed;
-
-    NoCat *c = listaCats;
-    int idx = 0;
-    while (c != NULL && removed == 0) {
-        NoItem *it = c->itens;
-        NoItem *ant = NULL;
-        while (it != NULL && removed == 0) {
-            if (it->info.codigo == codigo) {
-                if (ant == NULL) {
-                    c->itens = it->prox;
-                } else {
-                    ant->prox = it->prox;
-                }
+    if (!lista) return removed;
+    NodoCat *c = lista;
+    while (c && !removed) {
+        NodoCom *it = c->itens, *ant = NULL;
+        while (it && !removed) {
+            if (it->dado.codigo == codigo) {
+                if (!ant) c->itens = it->prox; else ant->prox = it->prox;
                 free(it);
-
-                int pos = pos_cat(listaCats, c);
-                if (pos >= 0 && pos < *nCats_ptr && duos != NULL) {
-                    if (duos[pos] != NULL) {
-                        if (duos[pos]->porEnergia != NULL) soltar_arv(duos[pos]->porEnergia);
-                        if (duos[pos]->porProteina != NULL) soltar_arv(duos[pos]->porProteina);
-                        free(duos[pos]);
+                int pos = pos_cat(lista, c);
+                if (pos >= 0 && pos < *nCats_ptr && pars) {
+                    if (pars[pos]) {
+                        if (pars[pos]->porEnergia) solta_arv(pars[pos]->porEnergia);
+                        if (pars[pos]->porProteina) solta_arv(pars[pos]->porProteina);
+                        free(pars[pos]);
                     }
-
-                    duos[pos] = montar_duo(c);
+                    pars[pos] = monta_par(c);
                 }
                 removed = 1;
-            } else {
-                ant = it;
-                it = it->prox;
-            }
+            } else { ant = it; it = it->prox; }
         }
         c = c->prox;
-        idx++;
     }
     return removed;
 }
 
-int main(void) {
-    Alimento *arr = NULL; int total = 0;
-    int ok = ler_bin("dados.bin", &arr, &total);
-    if (ok != 1) { printf("Falha ao ler dados.bin\n"); return 0; }
+static int salva_bin(const char *path, NodoCat *lista)
+{
+    int total = 0;
+    NodoCat *c = lista;
+    while (c) { NodoCom *it = c->itens; while (it) { total++; it = it->prox; } c = c->prox; }
+    FILE *f = fopen(path, "wb");
+    if (!f) return 0;
+    if (fwrite(&total, sizeof(int), 1, f) != 1) { fclose(f); return 0; }
+    if (total == 0) { fclose(f); return 1; }
+    Comidinha *arr = (Comidinha*)malloc((size_t)total * sizeof(Comidinha));
+    if (!arr) { fclose(f); return 0; }
+    int idx = 0;
+    c = lista;
+    while (c) {
+        NodoCom *it = c->itens;
+        while (it) { arr[idx++] = it->dado; it = it->prox; }
+        c = c->prox;
+    }
+    if ((int)fwrite(arr, sizeof(Comidinha), (size_t)total, f) != total) { free(arr); fclose(f); return 0; }
+    free(arr);
+    fclose(f);
+    return 1;
+}
 
-    NoCat *listaCats = NULL;
+int main(void)
+{
+    Comidinha *arr = NULL; int total = 0;
+    int ok = ler_bin("dados.bin", &arr, &total);
+    if (ok != 1) { printf("ERRO\n"); return 0; }
+    NodoCat *lista = NULL;
     int i = 0;
     while (i < total) {
-        if (arr[i].categoria >= CEREAIS && arr[i].categoria <= MISCELANEAS)
-            inserir_item_por_cat(&listaCats, &arr[i]);
+        if (arr[i].categoria >= CEREAIS && arr[i].categoria <= NOZES_SEMENTES) joga_na_cat(&lista, &arr[i]);
         i++;
     }
     free(arr);
-
-    int nCats = contar_cats(listaCats);
-    DuoArv **duos = NULL;
+    int nCats = conta_cats(lista);
+    ParArv **pars = NULL;
     if (nCats > 0) {
-        duos = (DuoArv**)malloc((size_t)nCats * sizeof(DuoArv*));
-        if (duos == NULL) { printf("Memória insuficiente\n"); soltar_geral(listaCats, NULL, 0); return 0; }
+        pars = (ParArv**)malloc((size_t)nCats * sizeof(ParArv*));
+        if (!pars) { printf("ERRO\n"); soltar_geral(lista, NULL, 0); return 0; }
+        int z = 0; while (z < nCats) { pars[z] = NULL; z++; }
     }
-
-    int k = 0; NoCat *g = listaCats;
-    while (g != NULL) { duos[k] = montar_duo(g); k++; g = g->prox; }
-
-    int escolha = -1; int loop = 1;
-    while (loop == 1) {
-        printf("\nMenu:\n");
-        printf("1 - Ver categorias\n");
-        printf("2 - Itens por categoria (alfabético)\n");
-        printf("3 - Itens por energia (decrescente)\n");
-        printf("4 - Itens por proteína (decrescente)\n");
-        printf("5 - Itens por energia dentro de um intervalo\n");
-        printf("6 - Itens por proteína dentro de um intervalo\n");
-        printf("7 - remover uma categoria\n");
-        printf("8 - remover um alimento\n");
-        printf("0 - Sair\n");
-        if (scanf("%d", &escolha) != 1) loop = 0;
-        else {
-            if (escolha == 0) loop = 0;
-            else if (escolha == 1) {
-                ver_categorias(listaCats);
-            } else if (escolha == 2) {
-                int cid = -1; printf("Categoria id: ");
-                if (scanf("%d", &cid) == 1) {
-                    NoCat *cat = achar_cat(listaCats, cid);
-                    if (cat != NULL) ver_itens(cat);
-                }
-            } else if (escolha == 3) {
-                int cid = -1; printf("Categoria id: ");
-                if (scanf("%d", &cid) == 1) {
-                    NoCat *cat = achar_cat(listaCats, cid);
-                    int p = pos_cat(listaCats, cat);
-                    if (p >= 0 && p < nCats && duos[p] != NULL) print_dec(duos[p]->porEnergia);
-                }
-            } else if (escolha == 4) {
-                int cid = -1; printf("Categoria id: ");
-                if (scanf("%d", &cid) == 1) {
-                    NoCat *cat = achar_cat(listaCats, cid);
-                    int p = pos_cat(listaCats, cat);
-                    if (p >= 0 && p < nCats && duos[p] != NULL) print_dec(duos[p]->porProteina);
-                }
-            }else if (escolha == 5) {
-                int cid; float min, max;
-                printf("Categoria id: ");
-                if (scanf("%d", &cid) == 1) {
-                    printf("Energia mínima: "); scanf("%f", &min);
-                    printf("Energia máxima: "); scanf("%f", &max);
-                    NoCat *cat = achar_cat(listaCats, cid);
-                    int p = pos_cat(listaCats, cat);
-                    if (p >= 0 && duos[p] != NULL)
-                        print_range_energia(duos[p]->porEnergia, min, max);
-                }
-            }else if (escolha == 6) {
-                int cid; float min, max;
-                printf("Categoria id: ");
-                if (scanf("%d", &cid) == 1) {
-                    printf("Proteína mínima: "); scanf("%f", &min);
-                    printf("Proteína máxima: "); scanf("%f", &max);
-                    NoCat *cat = achar_cat(listaCats, cid);
-                    int p = pos_cat(listaCats, cat);
-                    if (p >= 0 && duos[p] != NULL)
-                        print_range_proteina(duos[p]->porProteina, min, max);
-                }
-            } else if (escolha == 7) {
-                int cid = -1; printf("Categoria id para remover: ");
-                if (scanf("%d", &cid) == 1) {
-                    int okrem = remover_categoria(&listaCats, &duos, &nCats, cid);
-                    if (okrem) { printf("Categoria %d removida.\n", cid); modified = 1; }
-                    else printf("Categoria %d não encontrada.\n", cid);
-                }
-            } else if (escolha == 8) {
-                int codigo = -1; printf("Codigo do alimento para remover: ");
-                if (scanf("%d", &codigo) == 1) {
-                    int okrem = remover_alimento_por_codigo(listaCats, duos, &nCats, codigo);
-                    if (okrem) { printf("Alimento %d removido.\n", codigo); modified = 1; }
-                    else printf("Alimento %d não encontrado.\n", codigo);
-                }
+    int k = 0; NodoCat *g = lista;
+    while (g) { pars[k] = monta_par(g); k++; g = g->prox; }
+    int opt = -1;
+    while (1) {
+        printf("1 Listar categorias\n");
+        printf("2 Listar itens de uma categoria em ordem alfabética\n");
+        printf("3 Listar por energia\n");
+        printf("4 Listar por proteína\n");
+        printf("5 Listar por energia mediante a valores\n");
+        printf("6 Listar por proteína mediante a valores\n");
+        printf("7 Remover categoria\n");
+        printf("8 Remover alimento\n");
+        printf("9 Salvar em dados.bin\n");
+        printf("0 Sair\n");
+        if (scanf("%d", &opt) != 1) break;
+        if (opt == 0) break;
+        if (opt == 1) {
+            NodoCat *t = lista;
+            while (t) { printf("%d %s\n", t->id, NOMES_CAT[t->id]); t = t->prox; }
+        }
+        else if (opt == 2) {
+            int cid; printf("Digite id da categoria (0..14): "); if (scanf("%d",&cid) != 1) continue;
+            if (cid < 0 || cid > 14) continue;
+            NodoCat *c = acha_cat(lista,cid);
+            if (c) { NodoCom *it = c->itens; while (it) { printf("%d %s %.0f %.1f\n", it->dado.codigo, it->dado.descricao, it->dado.energia, it->dado.proteina); it = it->prox; } }
+        }
+        else if (opt == 3) {
+            int cid; printf("Digite id da categoria (0..14): "); if (scanf("%d",&cid) != 1) continue;
+            if (cid < 0 || cid > 14) continue;
+            NodoCat *c = acha_cat(lista,cid);
+            int pos = pos_cat(lista,c);
+            if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porEnergia) print_dec(pars[pos]->porEnergia);
+        }
+        else if (opt == 4) {
+            int cid; printf("Digite id da categoria (0..14): "); if (scanf("%d",&cid) != 1) continue;
+            if (cid < 0 || cid > 14) continue;
+            NodoCat *c = acha_cat(lista,cid);
+            int pos = pos_cat(lista,c);
+            if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porProteina) print_dec(pars[pos]->porProteina);
+        }
+        else if (opt == 5) {
+            int cid; float a,b; printf("Digite: id min max -> "); if (scanf("%d %f %f",&cid,&a,&b) != 3) continue;
+            if (cid < 0 || cid > 14) continue;
+            NodoCat *c = acha_cat(lista,cid);
+            int pos = pos_cat(lista,c);
+            if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porEnergia) {
+                if (a>b) { float t=a; a=b; b=t; }
+                imprime_range_rec(pars[pos]->porEnergia, a, b);
             }
-
+        }
+        else if (opt == 6) {
+            int cid; float a,b; printf("Digite: id min max -> "); if (scanf("%d %f %f",&cid,&a,&b) != 3) continue;
+            if (cid < 0 || cid > 14) continue;
+            NodoCat *c = acha_cat(lista,cid);
+            int pos = pos_cat(lista,c);
+            if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porProteina) {
+                if (a>b) { float t=a; a=b; b=t; }
+                imprime_range_rec(pars[pos]->porProteina, a, b);
+            }
+        }
+        else if (opt == 7) {
+            printf("Digite id para remover (0..14): ");
+            int cid; if (scanf("%d",&cid) != 1) continue;
+            if (cid < 0 || cid > 14) { printf("NF\n"); continue; }
+            if (remove_categoria(&lista, &pars, &nCats)) { printf("OK\n"); } else printf("NF\n");
+        }
+        else if (opt == 8) {
+            printf("Digite código do alimento: ");
+            int code; if (scanf("%d",&code) != 1) continue;
+            if (remove_alimento(lista, pars, &nCats, code)) printf("OK\n"); else printf("NF\n");
+        }
+        else if (opt == 9) {
+            if (salva_bin("dados.bin", lista)) printf("OK\n"); else printf("ERRO\n");
+        }
+        else {
+            printf("Inv\n");
         }
     }
-
-    soltar_geral(listaCats, duos, nCats);
+    soltar_geral(lista, pars, nCats);
     return 0;
 }
+
