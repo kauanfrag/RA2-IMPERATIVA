@@ -376,6 +376,8 @@ static int salva_bin(const char *path, NodoCat *lista)
     return 1;
 }
 
+static int modificado = 0;
+
 int main(void)
 {
     Comidinha *arr = NULL; int total = 0;
@@ -398,82 +400,128 @@ int main(void)
     int k = 0; NodoCat *g = lista;
     while (g) { pars[k] = monta_par(g); k++; g = g->prox; }
     int opt = -1;
-    while (1) {
+    int running = 1;
+    while (running) {
+        printf("\n--- MENU ---\n");
         printf("1 Listar categorias\n");
-        printf("2 Listar itens de uma categoria em ordem alfabética\n");
-        printf("3 Listar por energia\n");
-        printf("4 Listar por proteína\n");
-        printf("5 Listar por energia mediante a valores\n");
-        printf("6 Listar por proteína mediante a valores\n");
-        printf("7 Remover categoria\n");
-        printf("8 Remover alimento\n");
+        printf("2 Listar itens de uma categoria (alfabético)\n");
+        printf("3 Listar por ENERGIA (decrescente)\n");
+        printf("4 Listar por PROTEÍNA (decrescente)\n");
+        printf("5 Listar por ENERGIA dentro de intervalo (id min max)\n");
+        printf("6 Listar por PROTEÍNA dentro de intervalo (id min max)\n");
+        printf("7 Remover categoria (digite id 0..14)\n");
+        printf("8 Remover alimento (digite código)\n");
         printf("9 Salvar em dados.bin\n");
         printf("0 Sair\n");
-        if (scanf("%d", &opt) != 1) break;
-        if (opt == 0) break;
-        if (opt == 1) {
-            NodoCat *t = lista;
-            while (t) { printf("%d %s\n", t->id, NOMES_CAT[t->id]); t = t->prox; }
-        }
-        else if (opt == 2) {
-            int cid; printf("Digite id da categoria (0..14): "); if (scanf("%d",&cid) != 1) continue;
-            if (cid < 0 || cid > 14) continue;
-            NodoCat *c = acha_cat(lista,cid);
-            if (c) { NodoCom *it = c->itens; while (it) { printf("%d %s %.0f %.1f\n", it->dado.codigo, it->dado.descricao, it->dado.energia, it->dado.proteina); it = it->prox; } }
-        }
-        else if (opt == 3) {
-            int cid; printf("Digite id da categoria (0..14): "); if (scanf("%d",&cid) != 1) continue;
-            if (cid < 0 || cid > 14) continue;
-            NodoCat *c = acha_cat(lista,cid);
-            int pos = pos_cat(lista,c);
-            if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porEnergia) print_dec(pars[pos]->porEnergia);
-        }
-        else if (opt == 4) {
-            int cid; printf("Digite id da categoria (0..14): "); if (scanf("%d",&cid) != 1) continue;
-            if (cid < 0 || cid > 14) continue;
-            NodoCat *c = acha_cat(lista,cid);
-            int pos = pos_cat(lista,c);
-            if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porProteina) print_dec(pars[pos]->porProteina);
-        }
-        else if (opt == 5) {
-            int cid; float a,b; printf("Digite: id min max -> "); if (scanf("%d %f %f",&cid,&a,&b) != 3) continue;
-            if (cid < 0 || cid > 14) continue;
-            NodoCat *c = acha_cat(lista,cid);
-            int pos = pos_cat(lista,c);
-            if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porEnergia) {
-                if (a>b) { float t=a; a=b; b=t; }
-                imprime_range_rec(pars[pos]->porEnergia, a, b);
-            }
-        }
-        else if (opt == 6) {
-            int cid; float a,b; printf("Digite: id min max -> "); if (scanf("%d %f %f",&cid,&a,&b) != 3) continue;
-            if (cid < 0 || cid > 14) continue;
-            NodoCat *c = acha_cat(lista,cid);
-            int pos = pos_cat(lista,c);
-            if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porProteina) {
-                if (a>b) { float t=a; a=b; b=t; }
-                imprime_range_rec(pars[pos]->porProteina, a, b);
-            }
-        }
-        else if (opt == 7) {
-            printf("Digite id para remover (0..14): ");
-            int cid; if (scanf("%d",&cid) != 1) continue;
-            if (cid < 0 || cid > 14) { printf("NF\n"); continue; }
-            if (remove_categoria(&lista, &pars, &nCats)) { printf("OK\n"); } else printf("NF\n");
-        }
-        else if (opt == 8) {
-            printf("Digite código do alimento: ");
-            int code; if (scanf("%d",&code) != 1) continue;
-            if (remove_alimento(lista, pars, &nCats, code)) printf("OK\n"); else printf("NF\n");
-        }
-        else if (opt == 9) {
-            if (salva_bin("dados.bin", lista)) printf("OK\n"); else printf("ERRO\n");
-        }
-        else {
+        printf("Escolha: ");
+        int read = scanf("%d", &opt);
+        if (read != 1) {
+            int ch;
+            while ((ch = getchar()) != '\n' && ch != EOF) ;
             printf("Inv\n");
+        } else {
+            if (opt == 0) {
+                if (modificado) {
+                    if (salva_bin("dados.bin", lista)) printf("OK\n"); else printf("ERRO\n");
+                }
+                running = 0;
+            } else if (opt == 1) {
+                NodoCat *t = lista;
+                while (t) { printf("%d %s\n", t->id, NOMES_CAT[t->id]); t = t->prox; }
+            } else if (opt == 2) {
+                int cid; printf("Digite id da categoria (0..14): ");
+                int r = scanf("%d", &cid);
+                if (r != 1) { int ch; while ((ch = getchar()) != '\n' && ch != EOF) ; printf("Inv\n"); }
+                else {
+                    if (cid < 0 || cid > 14) { printf("Inv\n"); }
+                    else {
+                        NodoCat *c = acha_cat(lista,cid);
+                        if (c) { NodoCom *it = c->itens; while (it) { printf("%d %s %.0f %.1f\n", it->dado.codigo, it->dado.descricao, it->dado.energia, it->dado.proteina); it = it->prox; } }
+                    }
+                }
+            } else if (opt == 3) {
+                int cid; printf("Digite id da categoria (0..14): ");
+                int r = scanf("%d", &cid);
+                if (r != 1) { int ch; while ((ch = getchar()) != '\n' && ch != EOF) ; printf("Inv\n"); }
+                else {
+                    if (cid < 0 || cid > 14) { printf("Inv\n"); }
+                    else {
+                        NodoCat *c = acha_cat(lista,cid);
+                        int pos = pos_cat(lista,c);
+                        if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porEnergia) print_dec(pars[pos]->porEnergia);
+                    }
+                }
+            } else if (opt == 4) {
+                int cid; printf("Digite id da categoria (0..14): ");
+                int r = scanf("%d", &cid);
+                if (r != 1) { int ch; while ((ch = getchar()) != '\n' && ch != EOF) ; printf("Inv\n"); }
+                else {
+                    if (cid < 0 || cid > 14) { printf("Inv\n"); }
+                    else {
+                        NodoCat *c = acha_cat(lista,cid);
+                        int pos = pos_cat(lista,c);
+                        if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porProteina) print_dec(pars[pos]->porProteina);
+                    }
+                }
+            } else if (opt == 5) {
+                int cid; float a,b; printf("Digite: id min max -> ");
+                int r = scanf("%d %f %f",&cid,&a,&b);
+                if (r != 3) { int ch; while ((ch = getchar()) != '\n' && ch != EOF) ; printf("Inv\n"); }
+                else {
+                    if (cid < 0 || cid > 14) { printf("Inv\n"); }
+                    else {
+                        NodoCat *c = acha_cat(lista,cid);
+                        int pos = pos_cat(lista,c);
+                        if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porEnergia) {
+                            if (a>b) { float t=a; a=b; b=t; }
+                            imprime_range_rec(pars[pos]->porEnergia, a, b);
+                        }
+                    }
+                }
+            } else if (opt == 6) {
+                int cid; float a,b; printf("Digite: id min max -> ");
+                int r = scanf("%d %f %f",&cid,&a,&b);
+                if (r != 3) { int ch; while ((ch = getchar()) != '\n' && ch != EOF) ; printf("Inv\n"); }
+                else {
+                    if (cid < 0 || cid > 14) { printf("Inv\n"); }
+                    else {
+                        NodoCat *c = acha_cat(lista,cid);
+                        int pos = pos_cat(lista,c);
+                        if (pos >= 0 && pos < nCats && pars && pars[pos] && pars[pos]->porProteina) {
+                            if (a>b) { float t=a; a=b; b=t; }
+                            imprime_range_rec(pars[pos]->porProteina, a, b);
+                        }
+                    }
+                }
+            } else if (opt == 7) {
+                printf("Digite id para remover (0..14): ");
+                int cid; int r = scanf("%d",&cid);
+                if (r != 1) { int ch; while ((ch = getchar()) != '\n' && ch != EOF) ; printf("Inv\n"); }
+                else {
+                    if (cid < 0 || cid > 14) { printf("NF\n"); }
+                    else {
+                        if (remove_categoria(&lista, &pars, &nCats, cid)) { printf("OK\n"); modificado = 1; }
+                        else printf("NF\n");
+                    }
+                }
+            } else if (opt == 8) {
+                printf("Digite código do alimento: ");
+                int code; int r = scanf("%d",&code);
+                if (r != 1) { int ch; while ((ch = getchar()) != '\n' && ch != EOF) ; printf("Inv\n"); }
+                else {
+                    if (remove_alimento(lista, pars, &nCats, code)) { printf("OK\n"); modificado = 1; }
+                    else printf("NF\n");
+                }
+            } else if (opt == 9) {
+                if (salva_bin("dados.bin", lista)) printf("OK\n"); else printf("ERRO\n");
+            } else {
+                printf("Inv\n");
+            }
         }
     }
+
     soltar_geral(lista, pars, nCats);
     return 0;
 }
+
 
