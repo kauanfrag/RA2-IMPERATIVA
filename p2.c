@@ -402,18 +402,16 @@ int main(void)
     int opt = -1;
     int running = 1;
     while (running) {
-        printf("\n--- MENU ---\n");
         printf("1 Listar categorias\n");
-        printf("2 Listar itens de uma categoria (alfabético)\n");
-        printf("3 Listar por ENERGIA (decrescente)\n");
-        printf("4 Listar por PROTEÍNA (decrescente)\n");
-        printf("5 Listar por ENERGIA dentro de intervalo (id min max)\n");
-        printf("6 Listar por PROTEÍNA dentro de intervalo (id min max)\n");
-        printf("7 Remover categoria (digite id 0..14)\n");
-        printf("8 Remover alimento (digite código)\n");
+        printf("2 Listar itens de uma categoria em ordem alfabética\n");
+        printf("3 Listar por energia\n");
+        printf("4 Listar por proteína\n");
+        printf("5 Listar por energia mediate a valores informados\n");
+        printf("6 Listar por proteína mediante a valores informados\n");
+        printf("7 Remover categoria\n");
+        printf("8 Remover alimento\n");
         printf("9 Salvar em dados.bin\n");
         printf("0 Sair\n");
-        printf("Escolha: ");
         int read = scanf("%d", &opt);
         if (read != 1) {
             int ch;
